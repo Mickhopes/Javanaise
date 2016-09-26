@@ -93,7 +93,12 @@ public class JvnServerImpl
 	**/
 	public  void jvnRegisterObject(String jon, JvnObject jo)
 	throws jvn.JvnException {
-		// to be completed 
+		try{
+			jr.jvnRegisterObject(jon, jo, this);
+		} catch(RemoteException e){
+			System.err.println("Problem with object registering : "+e.getMessage());
+			e.printStackTrace();
+		}
 	}
 	
 	/**
@@ -104,7 +109,13 @@ public class JvnServerImpl
 	**/
 	public  JvnObject jvnLookupObject(String jon)
 	throws jvn.JvnException {
-    // to be completed 
+		try{
+			JvnObject jo = jr.jvnLookupObject(jon, this);
+			return jo;
+		} catch(RemoteException e){
+			System.err.println("Problem with object lookup : "+e.getMessage());
+			e.printStackTrace();
+		}
 		return null;
 	}	
 	
