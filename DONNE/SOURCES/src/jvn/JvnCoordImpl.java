@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.io.Serializable;
 
-
 public class JvnCoordImpl 	
               extends UnicastRemoteObject 
 							implements JvnRemoteCoord{
@@ -32,7 +31,12 @@ public class JvnCoordImpl
 	/**
 	 * HashMap for the names of the JvnObjects
 	 */
-	private HashMap<String, JvnObject> nameMap;
+	private HashMap<String, Integer> nameMap;
+	
+	/**
+	 * HashMap for the identifiers and objects
+	 */
+	private HashMap<Integer, JvnObject> objectMap;
 	
 	/**
 	 * HashMap for the list of the server and their state
@@ -44,14 +48,14 @@ public class JvnCoordImpl
   * @throws JvnException
   **/
 	private JvnCoordImpl() throws Exception {
-		nameMap = new HashMap<String, JvnObject>();
+		nameMap = new HashMap<String, Integer>();
+		objectMap = new HashMap<Integer, JvnObject>();
 		lockMap = new HashMap<Integer, List<ServerState>>();
 		
 		try {
 			// We bind the server in the rmi registry
 			Registry registry = LocateRegistry.getRegistry();
-			JvnRemoteCoord r_stub = (JvnRemoteCoord)UnicastRemoteObject.exportObject(this, 0);
-			registry.bind("coord", r_stub);
+			registry.rebind("coord", this);
 		} catch(RemoteException e) {
 			System.err.println("Unable to bind coordinator: " + e.getMessage());
 			e.printStackTrace();
@@ -78,10 +82,13 @@ public class JvnCoordImpl
   **/
   public synchronized void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
   throws java.rmi.RemoteException,jvn.JvnException{
-	// We add the association of the name and JvnObject
-    nameMap.put(jon, jo);
+	// We add the association of the name and id
+    nameMap.put(jon, jo.jvnGetObjectId());
     
-    // Then we add the server to the list
+    // Then we add the object
+    objectMap.put(jo.jvnGetObjectId(), jo);
+    
+    // Finally we add the server to the list
     ArrayList<ServerState> listServerState = new ArrayList<ServerState>();
     ServerState st = new ServerState(js, StateLock.NL);
     listServerState.add(st);
@@ -96,7 +103,8 @@ public class JvnCoordImpl
   **/
   public synchronized JvnObject jvnLookupObject(String jon, JvnRemoteServer js)
   throws java.rmi.RemoteException,jvn.JvnException{
-    JvnObject jo = nameMap.get(jon);
+	int idObject = nameMap.get(jon);
+    JvnObject jo = objectMap.get(idObject);
     
     // If jo is null then we return null
     if (jo == null) {
@@ -120,7 +128,8 @@ public class JvnCoordImpl
   **/
    public synchronized Serializable jvnLockRead(int joi, JvnRemoteServer js)
    throws java.rmi.RemoteException, JvnException{
-    return null;
+	// to be completed
+    return objectMap.get(joi).jvnGetObjectState();
    }
 
   /**
@@ -133,7 +142,7 @@ public class JvnCoordImpl
    public synchronized Serializable jvnLockWrite(int joi, JvnRemoteServer js)
    throws java.rmi.RemoteException, JvnException{
     // to be completed
-    return null;
+    return objectMap.get(joi).jvnGetObjectState();
    }
 
 	/**
