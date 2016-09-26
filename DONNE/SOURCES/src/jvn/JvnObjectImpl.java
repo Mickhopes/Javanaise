@@ -11,42 +11,34 @@ public class JvnObjectImpl implements JvnObject{
 	private StateLock state;
 	
 	public void jvnLockRead() throws JvnException {
-		// TODO Auto-generated method stub
-		
+		state = StateLock.R;
 	}
 
-	public void jvnLockWrite() throws JvnException {
-		// TODO Auto-generated method stub
-		
+	public void jvnLockWrite() throws JvnException {		
+		state = StateLock.W;
 	}
 
-	public void jvnUnLock() throws JvnException {
-		// TODO Auto-generated method stub
-		
+	public void jvnUnLock() throws JvnException {	
+		state = StateLock.NL;
 	}
 
-	public int jvnGetObjectId() throws JvnException {
-		// TODO Auto-generated method stub
+	public int jvnGetObjectId() throws JvnException {		
 		return id;
 	}
 
-	public Serializable jvnGetObjectState() throws JvnException {
-		// TODO Auto-generated method stub
-		return null;
+	public Serializable jvnGetObjectState() throws JvnException {	
+		return sentence;
 	}
 
-	public void jvnInvalidateReader() throws JvnException {
-		// TODO Auto-generated method stub
+	public void jvnInvalidateReader() throws JvnException {	
 		
 	}
 
 	public Serializable jvnInvalidateWriter() throws JvnException {
-		// TODO Auto-generated method stub
 		return null;
 	}
 
-	public Serializable jvnInvalidateWriterForReader() throws JvnException {
-		// TODO Auto-generated method stub
+	public Serializable jvnInvalidateWriterForReader() throws JvnException {		
 		return null;
 	}
 
