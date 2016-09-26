@@ -1,9 +1,15 @@
 package jvn;
 
+import irc.Sentence;
+
 import java.io.Serializable;
 
 public class JvnObjectImpl implements JvnObject{
 
+	private Sentence sentence;
+	private int id;
+	private StateLock state;
+	
 	public void jvnLockRead() throws JvnException {
 		// TODO Auto-generated method stub
 		
@@ -21,7 +27,7 @@ public class JvnObjectImpl implements JvnObject{
 
 	public int jvnGetObjectId() throws JvnException {
 		// TODO Auto-generated method stub
-		return 0;
+		return id;
 	}
 
 	public Serializable jvnGetObjectState() throws JvnException {
