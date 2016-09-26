@@ -8,7 +8,14 @@
 
 package jvn;
 
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map.Entry;
 import java.io.Serializable;
 
 
@@ -16,13 +23,39 @@ public class JvnCoordImpl
               extends UnicastRemoteObject 
 							implements JvnRemoteCoord{
 	
+	/**
+	 * Static variable to identify all the jvnObject
+	 * We consider in our case that we won't reach max int
+	 */
+	private static int idCount = 0;
+	
+	/**
+	 * HashMap for the names of the JvnObjects
+	 */
+	private HashMap<String, JvnObject> nameMap;
+	
+	/**
+	 * HashMap for the list of the server and their state
+	 */
+	private HashMap<Integer, List<ServerState>> lockMap;
 
   /**
   * Default constructor
   * @throws JvnException
   **/
 	private JvnCoordImpl() throws Exception {
-		// to be completed
+		nameMap = new HashMap<String, JvnObject>();
+		lockMap = new HashMap<Integer, List<ServerState>>();
+		
+		try {
+			// We bind the server in the rmi registry
+			Registry registry = LocateRegistry.getRegistry();
+			JvnRemoteCoord r_stub = (JvnRemoteCoord)UnicastRemoteObject.exportObject(this, 0);
+			registry.bind("coord", r_stub);
+		} catch(RemoteException e) {
+			System.err.println("Unable to bind coordinator: " + e.getMessage());
+			e.printStackTrace();
+		}
 	}
 
   /**
@@ -30,10 +63,9 @@ public class JvnCoordImpl
   *  newly created JVN object)
   * @throws java.rmi.RemoteException,JvnException
   **/
-  public int jvnGetObjectId()
+  public synchronized int jvnGetObjectId()
   throws java.rmi.RemoteException,jvn.JvnException {
-    // to be completed 
-    return 0;
+    return idCount++;
   }
   
   /**
@@ -44,9 +76,16 @@ public class JvnCoordImpl
   * @param js  : the remote reference of the JVNServer
   * @throws java.rmi.RemoteException,JvnException
   **/
-  public void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
+  public synchronized void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
   throws java.rmi.RemoteException,jvn.JvnException{
-    // to be completed 
+	// We add the association of the name and JvnObject
+    nameMap.put(jon, jo);
+    
+    // Then we add the server to the list
+    ArrayList<ServerState> listServerState = new ArrayList<ServerState>();
+    ServerState st = new ServerState(js, StateLock.NL);
+    listServerState.add(st);
+    lockMap.put(jo.jvnGetObjectId(), listServerState);
   }
   
   /**
@@ -55,10 +94,21 @@ public class JvnCoordImpl
   * @param js : the remote reference of the JVNServer
   * @throws java.rmi.RemoteException,JvnException
   **/
-  public JvnObject jvnLookupObject(String jon, JvnRemoteServer js)
+  public synchronized JvnObject jvnLookupObject(String jon, JvnRemoteServer js)
   throws java.rmi.RemoteException,jvn.JvnException{
-    // to be completed 
-    return null;
+    JvnObject jo = nameMap.get(jon);
+    
+    // If jo is null then we return null
+    if (jo == null) {
+    	return null;
+    }
+    
+    // Otherwise we register the server and set its state to NL
+    List<ServerState> lst = lockMap.get(jo.jvnGetObjectId());
+    ServerState st = new ServerState(js, StateLock.NL);
+    lst.add(st);
+    
+    return jo;
   }
   
   /**
@@ -68,9 +118,8 @@ public class JvnCoordImpl
   * @return the current JVN object state
   * @throws java.rmi.RemoteException, JvnException
   **/
-   public Serializable jvnLockRead(int joi, JvnRemoteServer js)
+   public synchronized Serializable jvnLockRead(int joi, JvnRemoteServer js)
    throws java.rmi.RemoteException, JvnException{
-    // to be completed
     return null;
    }
 
@@ -81,7 +130,7 @@ public class JvnCoordImpl
   * @return the current JVN object state
   * @throws java.rmi.RemoteException, JvnException
   **/
-   public Serializable jvnLockWrite(int joi, JvnRemoteServer js)
+   public synchronized Serializable jvnLockWrite(int joi, JvnRemoteServer js)
    throws java.rmi.RemoteException, JvnException{
     // to be completed
     return null;
@@ -92,9 +141,21 @@ public class JvnCoordImpl
 	* @param js  : the remote reference of the server
 	* @throws java.rmi.RemoteException, JvnException
 	**/
-    public void jvnTerminate(JvnRemoteServer js)
+    public synchronized void jvnTerminate(JvnRemoteServer js)
 	 throws java.rmi.RemoteException, JvnException {
-	 // to be completed
+    	// We look for each object if the server is using it
+    	for(Entry<Integer, List<ServerState>> e : lockMap.entrySet()) {
+    		List<ServerState> lst = e.getValue();
+    		
+    		// We also look in the list
+    		for(ServerState s : lst) {
+    			
+    			// if we find it, we remove it
+    			if (js == s.getServer()) {
+    				lst.remove(s);
+    			}
+    		}
+    	}
     }
 }
 
