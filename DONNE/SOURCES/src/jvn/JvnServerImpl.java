@@ -8,6 +8,8 @@
 
 package jvn;
 
+import irc.Sentence;
+
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -72,7 +74,14 @@ public class JvnServerImpl
 	**/
 	public  JvnObject jvnCreateObject(Serializable o)
 	throws jvn.JvnException { 
-		// to be completed 
+		JvnObjectImpl jo = new JvnObjectImpl((Sentence)o);
+		try{
+			jo.setId(jr.jvnGetObjectId());
+			//jr.jvnLockWrite(jo.getId(), this);
+		} catch(RemoteException e){
+			System.err.println("Problem with object creation : "+e.getMessage());
+			e.printStackTrace();
+		}
 		return null; 
 	}
 	
