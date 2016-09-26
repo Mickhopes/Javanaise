@@ -5,21 +5,26 @@ import irc.Sentence;
 import java.io.Serializable;
 
 public class JvnObjectImpl implements JvnObject{
-
+	
 	private Sentence sentence;
 	private int id;
 	private StateLock state;
+	private JvnLocalServer jl;
 	
-	public JvnObjectImpl(Sentence sentence){
+	public JvnObjectImpl(int id, Sentence sentence, JvnLocalServer jl){
+		this.id = id;
 		this.sentence = sentence;
 		this.state = StateLock.NL;
+		this.jl = jl;
 	}
 	
 	public void jvnLockRead() throws JvnException {
+		sentence = (Sentence)jl.jvnLockRead(id);
 		state = StateLock.R;
 	}
 
-	public void jvnLockWrite() throws JvnException {		
+	public void jvnLockWrite() throws JvnException {
+		sentence = (Sentence)jl.jvnLockWrite(id);
 		state = StateLock.W;
 	}
 
@@ -46,29 +51,4 @@ public class JvnObjectImpl implements JvnObject{
 	public Serializable jvnInvalidateWriterForReader() throws JvnException {		
 		return null;
 	}
-
-	public Sentence getSentence() {
-		return sentence;
-	}
-
-	public void setSentence(Sentence sentence) {
-		this.sentence = sentence;
-	}
-
-	public int getId() {
-		return id;
-	}
-
-	public void setId(int id) {
-		this.id = id;
-	}
-
-	public StateLock getState() {
-		return state;
-	}
-
-	public void setState(StateLock state) {
-		this.state = state;
-	}
-
 }

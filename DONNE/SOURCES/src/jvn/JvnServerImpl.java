@@ -16,8 +16,6 @@ import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.io.*;
 
-
-
 public class JvnServerImpl 	
               extends UnicastRemoteObject 
 							implements JvnLocalServer, JvnRemoteServer{
@@ -64,7 +62,12 @@ public class JvnServerImpl
 	**/
 	public  void jvnTerminate()
 	throws jvn.JvnException {
-    // to be completed 
+    	try {
+			jr.jvnTerminate(this);
+		} catch (RemoteException e) {
+			System.err.println("Problem with termination : " + e.getMessage());
+			e.printStackTrace();
+		} 
 	} 
 	
 	/**
@@ -74,10 +77,12 @@ public class JvnServerImpl
 	**/
 	public  JvnObject jvnCreateObject(Serializable o)
 	throws jvn.JvnException { 
-		JvnObjectImpl jo = new JvnObjectImpl((Sentence)o);
 		try{
-			jo.setId(jr.jvnGetObjectId());
-			//jr.jvnLockWrite(jo.getId(), this);
+			int id = jr.jvnGetObjectId();
+			JvnObjectImpl jo = new JvnObjectImpl(id, (Sentence)o, this);
+			jr.jvnLockWrite(jo.jvnGetObjectId(), this);
+			
+			return jo;
 		} catch(RemoteException e){
 			System.err.println("Problem with object creation : "+e.getMessage());
 			e.printStackTrace();
@@ -127,9 +132,13 @@ public class JvnServerImpl
 	**/
    public Serializable jvnLockRead(int joi)
 	 throws JvnException {
-		// to be completed 
+		try {
+			return jr.jvnLockRead(joi, this);
+		} catch (RemoteException e) {
+			System.err.println("Problem with lock read : " + e.getMessage());
+			e.printStackTrace();
+		}
 		return null;
-
 	}	
 	/**
 	* Get a Write lock on a JVN object 
@@ -139,7 +148,12 @@ public class JvnServerImpl
 	**/
    public Serializable jvnLockWrite(int joi)
 	 throws JvnException {
-		// to be completed 
+	   try {
+			return jr.jvnLockWrite(joi, this);
+		} catch (RemoteException e) {
+			System.err.println("Problem with lock read : " + e.getMessage());
+			e.printStackTrace();
+		}
 		return null;
 	}	
 
