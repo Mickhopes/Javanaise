@@ -117,7 +117,7 @@ public class JvnServerImpl
 		try{
 			JvnObject jo = jr.jvnLookupObject(jon, this);
 			return jo;
-		} catch(RemoteException e){
+		} catch(Exception e){
 			System.err.println("Problem with object lookup : "+e.getMessage());
 			e.printStackTrace();
 		}
