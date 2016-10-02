@@ -23,6 +23,9 @@ public interface JvnObject extends Serializable {
 	**/
 	public void jvnLockRead()
 	throws jvn.JvnException; 
+	
+	public StateLock getState();
+	public void setState(StateLock s);
 
 	/**
 	* Get a Write lock on the object 

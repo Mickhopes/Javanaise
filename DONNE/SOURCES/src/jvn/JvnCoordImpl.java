@@ -8,15 +8,14 @@
 
 package jvn;
 
-import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
+import java.io.Serializable;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
-import java.io.Serializable;
+import java.util.concurrent.ConcurrentHashMap;
+
+import irc.Sentence;
 
 public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord {
 	
@@ -31,17 +30,17 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	/**
 	 * HashMap for the names of the JvnObjects
 	 */
-	private HashMap<String, Integer> nameMap;
+	private ConcurrentHashMap<String, Integer> nameMap;
 
 	/**
 	 * HashMap for the identifiers and objects
 	 */
-	private HashMap<Integer, JvnObject> objectMap;
+	private ConcurrentHashMap<Integer, Serializable> objectMap;
 
 	/**
 	 * HashMap for the list of the server and their state
 	 */
-	private HashMap<Integer, List<ServerState>> lockMap;
+	private ConcurrentHashMap<Integer, List<ServerState>> lockMap;
 
 	/**
 	 * Default constructor
@@ -51,9 +50,9 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	private JvnCoordImpl() throws Exception {
 		super();
 		
-		nameMap = new HashMap<String, Integer>();
-		objectMap = new HashMap<Integer, JvnObject>();
-		lockMap = new HashMap<Integer, List<ServerState>>();
+		nameMap = new ConcurrentHashMap<String, Integer>();
+		objectMap = new ConcurrentHashMap<Integer, Serializable>();
+		lockMap = new ConcurrentHashMap<Integer, List<ServerState>>();
 	}
 	
 	public static JvnCoordImpl jvnGetServer() {
@@ -96,13 +95,10 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		nameMap.put(jon, jo.jvnGetObjectId());
 
 		// Then we add the object
-		objectMap.put(jo.jvnGetObjectId(), jo);
-
-		// Finally we add the server to the list
-		ArrayList<ServerState> listServerState = new ArrayList<ServerState>();
-		ServerState st = new ServerState(js, StateLock.NL);
-		listServerState.add(st);
-		lockMap.put(jo.jvnGetObjectId(), listServerState);
+		jo.setState(StateLock.NL);
+		objectMap.put(jo.jvnGetObjectId(), jo.jvnGetObjectState());
+		
+		System.out.println("Object " + jon + "registered");
 	}
 
 	/**
@@ -116,20 +112,15 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	 **/
 	public synchronized JvnObject jvnLookupObject(String jon, JvnRemoteServer js)
 			throws java.rmi.RemoteException, jvn.JvnException {
-		int idObject = nameMap.get(jon);
-		JvnObject jo = objectMap.get(idObject);
-
-		// If jo is null then we return null
-		if (jo == null) {
+		Integer idObject = nameMap.get(jon);
+		
+		if (idObject == null) {
 			return null;
 		}
+		
+		Serializable jo = objectMap.get(idObject);
 
-		// Otherwise we register the server and set its state to NL
-		List<ServerState> lst = lockMap.get(jo.jvnGetObjectId());
-		ServerState st = new ServerState(js, StateLock.NL);
-		lst.add(st);
-
-		return jo;
+		return new JvnObjectImpl(idObject, (Sentence)jo);
 	}
 
 	/**
@@ -145,8 +136,33 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	 **/
 	public synchronized Serializable jvnLockRead(int joi, JvnRemoteServer js)
 			throws java.rmi.RemoteException, JvnException {
-		// to be completed
-		return objectMap.get(joi).jvnGetObjectState();
+		List<ServerState> ls = lockMap.get(joi);
+		Serializable r = objectMap.get(joi);
+		
+		// Check if there is no writers
+		ServerState writer = null;
+		for(ServerState st : ls) {
+			if (st.getState() == StateLock.W) {
+				writer = st;
+				break;
+			}
+		}
+		
+		System.out.println("Lock read sur " + joi);
+	
+		// If there is a writer, we invalidate it
+		if (writer != null) {
+			r = writer.getServer().jvnInvalidateWriterForReader(joi);
+			writer.setState(StateLock.R);
+			
+			System.out.println("Invalidation d'un writer sur " + joi);
+		}
+		
+		// We add the server in read mode
+		ServerState s = new ServerState(js, StateLock.R);
+		ls.add(s);
+		
+		return r;
 	}
 
 	/**
@@ -162,8 +178,51 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	 **/
 	public synchronized Serializable jvnLockWrite(int joi, JvnRemoteServer js)
 			throws java.rmi.RemoteException, JvnException {
-		// to be completed
-		return objectMap.get(joi).jvnGetObjectState();
+		List<ServerState> ls = lockMap.get(joi);
+		
+		// If joi entry doesn't exists then the object have been created
+		if (ls == null) {
+			ArrayList<ServerState> listServerState = new ArrayList<ServerState>();
+			ServerState st = new ServerState(js, StateLock.W);
+			listServerState.add(st);
+			lockMap.put(joi, listServerState);
+			
+			System.out.println("Object créé " + joi);
+			
+			return null;
+		}
+		
+		System.out.println("Lock write sur " + joi);
+		
+		Serializable r = objectMap.get(joi);
+		
+		// Check if there is no writers
+		ServerState s = null;
+		for(ServerState st : ls) {
+			if (js != st.getServer()) {
+				if (st.getState() == StateLock.W) {
+					r = st.getServer().jvnInvalidateWriter(joi);
+					System.out.println("Invalidation d'un writer sur " + joi);
+				} else {
+					st.getServer().jvnInvalidateReader(joi);
+					System.out.println("Invalidation d'un reader sur " + joi);
+				}
+				
+				ls.remove(st);
+			} else {
+				s = st;
+			}
+		}
+		
+		// We add the server in read mode
+		if (s == null) {
+			s = new ServerState(js, StateLock.W);
+			ls.add(s);
+		} else {
+			s.setState(StateLock.W);
+		}
+		
+		return r;
 	}
 
 	/**

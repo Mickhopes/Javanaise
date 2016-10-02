@@ -47,6 +47,7 @@ public class Irc {
 	   
 	   } catch (Exception e) {
 		   System.out.println("IRC problem : " + e.getMessage());
+		   e.printStackTrace();
 	   }
 	}
 
@@ -92,6 +93,7 @@ public class Irc {
   **/
 	public void actionPerformed (ActionEvent e) {
 	 try {
+		 System.out.println(irc.sentence.getState());
 		// lock the object in read mode
 		irc.sentence.jvnLockRead();
 		
