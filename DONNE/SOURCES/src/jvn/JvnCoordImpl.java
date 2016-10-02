@@ -11,6 +11,7 @@ package jvn;
 import java.io.Serializable;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
@@ -89,16 +90,21 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	 *            : the remote reference of the JVNServer
 	 * @throws java.rmi.RemoteException,JvnException
 	 **/
-	public synchronized void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
+	public void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
 			throws java.rmi.RemoteException, jvn.JvnException {
-		// We add the association of the name and id
-		nameMap.put(jon, jo.jvnGetObjectId());
-
-		// Then we add the object
-		jo.setState(StateLock.NL);
-		objectMap.put(jo.jvnGetObjectId(), jo.jvnGetObjectState());
 		
-		System.out.println("Object " + jon + "registered");
+		if (nameMap.contains(jon)) {
+			throw new JvnException();
+		} else {
+			// We add the association of the name and id
+			nameMap.put(jon, jo.jvnGetObjectId());
+
+			// Then we add the object
+			objectMap.put(jo.jvnGetObjectId(), jo.jvnGetObjectState());
+			
+			System.out.println("Object " + jon + "registered");
+			printNames();
+		}
 	}
 
 	/**
@@ -110,17 +116,15 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	 *            : the remote reference of the JVNServer
 	 * @throws java.rmi.RemoteException,JvnException
 	 **/
-	public synchronized JvnObject jvnLookupObject(String jon, JvnRemoteServer js)
+	public JvnObject jvnLookupObject(String jon, JvnRemoteServer js)
 			throws java.rmi.RemoteException, jvn.JvnException {
-		Integer idObject = nameMap.get(jon);
-		
-		if (idObject == null) {
+		try {
+			Integer idObject = nameMap.get(jon);
+			Serializable jo = objectMap.get(idObject);
+			return new JvnObjectImpl(idObject, jo);
+		} catch (NullPointerException e) {
 			return null;
 		}
-		
-		Serializable jo = objectMap.get(idObject);
-
-		return new JvnObjectImpl(idObject, (Sentence)jo);
 	}
 
 	/**
@@ -141,10 +145,15 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		
 		// Check if there is no writers
 		ServerState writer = null;
+		ServerState self = null;
 		for(ServerState st : ls) {
-			if (st.getState() == StateLock.W) {
-				writer = st;
-				break;
+			if (!js.equals(st.getServer())) {
+				if (st.getState() == StateLock.W) {
+					writer = st;
+					break;
+				}
+			} else {
+				self = st;
 			}
 		}
 		
@@ -159,8 +168,12 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		}
 		
 		// We add the server in read mode
-		ServerState s = new ServerState(js, StateLock.R);
-		ls.add(s);
+		if (self == null) {
+			ServerState s = new ServerState(js, StateLock.R);
+			ls.add(s);
+		}
+		
+		printStates();
 		
 		return r;
 	}
@@ -196,31 +209,28 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		
 		Serializable r = objectMap.get(joi);
 		
+		System.out.println(ls.size());
 		// Check if there is no writers
-		ServerState s = null;
 		for(ServerState st : ls) {
-			if (js != st.getServer()) {
+			if (!js.equals(st.getServer())) {
 				if (st.getState() == StateLock.W) {
+					System.out.println("W " + st.getServer());
 					r = st.getServer().jvnInvalidateWriter(joi);
 					System.out.println("Invalidation d'un writer sur " + joi);
 				} else {
+					System.out.println("R " + st.getServer());
 					st.getServer().jvnInvalidateReader(joi);
 					System.out.println("Invalidation d'un reader sur " + joi);
 				}
-				
-				ls.remove(st);
-			} else {
-				s = st;
 			}
+			
 		}
+		ls.clear();
 		
-		// We add the server in read mode
-		if (s == null) {
-			s = new ServerState(js, StateLock.W);
-			ls.add(s);
-		} else {
-			s.setState(StateLock.W);
-		}
+		// We add the server in write mode
+		ServerState s = new ServerState(js, StateLock.W);
+		ls.add(s);
+		printStates();
 		
 		return r;
 	}
@@ -245,6 +255,23 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 				if (js == s.getServer()) {
 					lst.remove(s);
 				}
+			}
+		}
+	}
+	
+	public void printNames() {
+		System.out.println("Name Map :");
+		for(Entry<String, Integer> e : nameMap.entrySet()) {
+			System.out.println(e.getKey() + "\t" + e.getValue());
+		}
+	}
+	
+	public void printStates() {
+		System.out.println("State Map :");
+		for(Entry<Integer, List<ServerState>> e : lockMap.entrySet()) {
+			System.out.println(e.getKey() + " :");
+			for(ServerState s : e.getValue()) {
+				System.out.println("\t" + s.getServer().toString() + "\t" + s.getState());
 			}
 		}
 	}

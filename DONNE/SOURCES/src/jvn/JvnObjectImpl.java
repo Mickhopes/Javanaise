@@ -1,18 +1,16 @@
 package jvn;
 
-import irc.Sentence;
-
 import java.io.Serializable;
 
 public class JvnObjectImpl implements JvnObject{
 	
-	private Sentence sentence;
+	private Serializable objectData;
 	private int id;
 	private StateLock state;
 	
-	public JvnObjectImpl(int id, Sentence sentence){
+	public JvnObjectImpl(int id, Serializable objectData){
 		this.id = id;
-		this.sentence = sentence;
+		this.objectData = objectData;
 		this.state = StateLock.NL;
 	}
 	
@@ -24,7 +22,7 @@ public class JvnObjectImpl implements JvnObject{
 		this.state = s;
 	}
 	
-	public void jvnLockRead() throws JvnException {
+	public synchronized void jvnLockRead() throws JvnException {
 		switch(state) {
 			case RC:
 				state = StateLock.R;
@@ -33,16 +31,14 @@ public class JvnObjectImpl implements JvnObject{
 				state = StateLock.RWC;
 				break;
 			case NL:
-				System.out.println("je lis");
 				JvnServerImpl js = JvnServerImpl.jvnGetServer();
-				sentence = (Sentence)js.jvnLockRead(id);
-				System.out.println("sentence = " + sentence);
+				objectData = (Serializable)js.jvnLockRead(id);
 				state = StateLock.R;
 				break;
 		}
 	}
 
-	public void jvnLockWrite() throws JvnException {
+	public synchronized void jvnLockWrite() throws JvnException {
 		switch(state) {
 			case WC:
 			case RWC:
@@ -53,28 +49,25 @@ public class JvnObjectImpl implements JvnObject{
 				JvnServerImpl js = JvnServerImpl.jvnGetServer();
 				Serializable r = js.jvnLockWrite(id);
 				if (r != null) {
-					sentence = (Sentence)r;
+					objectData = (Serializable)r;
 				}
 				state = StateLock.W;
 				break;
 		}
 	}
 
-	public void jvnUnLock() throws JvnException {
+	public synchronized void jvnUnLock() throws JvnException {
 		switch(state) {
 			case W:
+			case RWC:
 				state = StateLock.WC;
 				break;
 			case R:
 				state = StateLock.RC;
 				break;
-			case RWC:
-				state = StateLock.WC;
-				break;
 		}
-		synchronized(this) {
-			notify();
-		}
+		System.out.println("Fin d'attente");
+		notify();
 	}
 
 	public int jvnGetObjectId() throws JvnException {		
@@ -82,15 +75,14 @@ public class JvnObjectImpl implements JvnObject{
 	}
 
 	public Serializable jvnGetObjectState() throws JvnException {	
-		return sentence;
+		return objectData;
 	}
 
-	public void jvnInvalidateReader() throws JvnException {
-		if (state == StateLock.R) {
+	public synchronized void jvnInvalidateReader() throws JvnException {
+		if (state == StateLock.R || state == StateLock.RWC) {
 			try {
-				synchronized(this) {
-					wait();
-				}
+				System.out.println("Attente invalidateReader");
+				wait();
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -98,12 +90,11 @@ public class JvnObjectImpl implements JvnObject{
 		state = StateLock.NL;
 	}
 
-	public Serializable jvnInvalidateWriter() throws JvnException {
-		if (state == StateLock.W) {
+	public synchronized Serializable jvnInvalidateWriter() throws JvnException {
+		if (state == StateLock.W || state == StateLock.RWC) {
 			try {
-				synchronized(this) {
-					wait();
-				}
+				System.out.println("Attente invalidateWriter");
+				wait();
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -112,26 +103,19 @@ public class JvnObjectImpl implements JvnObject{
 		return jvnGetObjectState();
 	}
 
-	public Serializable jvnInvalidateWriterForReader() throws JvnException {		
+	public synchronized Serializable jvnInvalidateWriterForReader() throws JvnException {		
 		switch(state) {
 			case W:
 				try {
-					synchronized(this) {
-						wait();
-					}
+					System.out.println("Attente invalidateWriterForReader");
+					wait();
+					state = StateLock.NL;
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
 			case WC:
-				state = StateLock.RC;
-				break;
 			case RWC:
-				try {
-					wait();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				state = StateLock.R;
+				state = StateLock.RC;
 				break;
 		}
 		

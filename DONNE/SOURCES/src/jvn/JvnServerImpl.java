@@ -85,7 +85,7 @@ public class JvnServerImpl
 		try{
 			int id = jr.jvnGetObjectId();
 			System.out.println(id);
-			JvnObjectImpl jo = new JvnObjectImpl(id, (Sentence)o);
+			JvnObjectImpl jo = new JvnObjectImpl(id, o);
 			objectMap.put(id, jo);
 			jo.jvnLockWrite();
 			

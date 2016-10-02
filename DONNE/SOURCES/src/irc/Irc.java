@@ -93,7 +93,6 @@ public class Irc {
   **/
 	public void actionPerformed (ActionEvent e) {
 	 try {
-		 System.out.println(irc.sentence.getState());
 		// lock the object in read mode
 		irc.sentence.jvnLockRead();
 		
