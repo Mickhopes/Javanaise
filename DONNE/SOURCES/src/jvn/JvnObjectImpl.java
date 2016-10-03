@@ -35,6 +35,8 @@ public class JvnObjectImpl implements JvnObject{
 				objectData = (Serializable)js.jvnLockRead(id);
 				state = StateLock.R;
 				break;
+			default:
+				break;
 		}
 	}
 
@@ -53,6 +55,8 @@ public class JvnObjectImpl implements JvnObject{
 				}
 				state = StateLock.W;
 				break;
+			default:
+				break;
 		}
 	}
 
@@ -65,8 +69,10 @@ public class JvnObjectImpl implements JvnObject{
 			case R:
 				state = StateLock.RC;
 				break;
+			default:
+				break;
 		}
-		System.out.println("Fin d'attente");
+		System.out.println("Wait ended");
 		notify();
 	}
 
@@ -79,27 +85,43 @@ public class JvnObjectImpl implements JvnObject{
 	}
 
 	public synchronized void jvnInvalidateReader() throws JvnException {
-		if (state == StateLock.R || state == StateLock.RWC) {
-			try {
-				System.out.println("Attente invalidateReader");
-				wait();
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+		switch(state){
+			case R:
+			case RWC:
+				try {
+					System.out.println("Wait for invalidateReader");
+					wait();
+					state = StateLock.NL;
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				break;
+			case RC:
+				state = StateLock.NL;
+				break;
+			default:
+				throw new JvnException("InvalidateReader when no readLock");
 		}
-		state = StateLock.NL;
 	}
 
 	public synchronized Serializable jvnInvalidateWriter() throws JvnException {
-		if (state == StateLock.W || state == StateLock.RWC) {
-			try {
-				System.out.println("Attente invalidateWriter");
-				wait();
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+		switch(state){
+			case W:
+			case RWC:
+				try {
+					System.out.println("Wait for invalidateWriter");
+					wait();
+					state = StateLock.NL;
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				break;
+			case WC:
+				state = StateLock.NL;
+				break;
+			default:
+				throw new JvnException("InvalidateWriter when no writeLock");
 		}
-		state = StateLock.NL;
 		return jvnGetObjectState();
 	}
 
@@ -107,16 +129,27 @@ public class JvnObjectImpl implements JvnObject{
 		switch(state) {
 			case W:
 				try {
-					System.out.println("Attente invalidateWriterForReader");
+					System.out.println("Wait for invalidateWriterForReader : W");
 					wait();
-					state = StateLock.NL;
+					state = StateLock.RC;
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-			case WC:
+				break;
 			case RWC:
+				try {
+					System.out.println("Wait for invalidateWriterForReader : RWC");
+					wait();
+					state = StateLock.R;
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				break;
+			case WC:		
 				state = StateLock.RC;
 				break;
+			default:
+				throw new JvnException("InvalidateWriterForReader called when no write lock");
 		}
 		
 		return jvnGetObjectState();
