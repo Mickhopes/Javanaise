@@ -162,6 +162,7 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		// If there is a writer, we invalidate it
 		if (writer != null) {
 			r = writer.getServer().jvnInvalidateWriterForReader(joi);
+			objectMap.put(joi, r);
 			writer.setState(StateLock.R);
 			
 			System.out.println("Invalidation d'un writer sur " + joi);
@@ -200,7 +201,7 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 			listServerState.add(st);
 			lockMap.put(joi, listServerState);
 			
-			System.out.println("Object créé " + joi);
+			System.out.println("Object crï¿½ï¿½ " + joi);
 			
 			return null;
 		}
@@ -216,6 +217,7 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 				if (st.getState() == StateLock.W) {
 					System.out.println("W " + st.getServer());
 					r = st.getServer().jvnInvalidateWriter(joi);
+					objectMap.put(joi, r);
 					System.out.println("Invalidation d'un writer sur " + joi);
 				} else {
 					System.out.println("R " + st.getServer());
