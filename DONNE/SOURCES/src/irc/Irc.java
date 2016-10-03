@@ -10,8 +10,8 @@ package irc;
 import java.awt.*;
 import java.awt.event.*;
 
-
 import jvn.*;
+
 import java.io.*;
 
 
@@ -71,6 +71,22 @@ public class Irc {
 		Button write_button = new Button("write");
 		write_button.addActionListener(new writeListener(this));
 		frame.add(write_button);
+		Button unlock_button = new Button("unlock");
+		unlock_button.addActionListener(new ActionListener(){
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				try {
+					sentence.jvnUnLock();
+				} catch (JvnException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+				
+			}
+			
+		});
+		frame.add(unlock_button);
 		frame.setSize(545,201);
 		text.setBackground(Color.black); 
 		frame.setVisible(true);
@@ -105,7 +121,7 @@ public class Irc {
 		String s = ((Sentence)(irc.sentence.jvnGetObjectState())).read();
 		
 		// unlock the object
-		irc.sentence.jvnUnLock();
+		//irc.sentence.jvnUnLock();
 		
 		// display the read value
 		irc.data.setText(s);
@@ -141,7 +157,7 @@ public class Irc {
 		((Sentence)(irc.sentence.jvnGetObjectState())).write(s);
 		
 		// unlock the object
-		irc.sentence.jvnUnLock();
+		//irc.sentence.jvnUnLock();
 	 } catch (JvnException je) {
 		   System.out.println("IRC problem  : " + je.getMessage());
 	 }
