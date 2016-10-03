@@ -20,6 +20,7 @@ public class Irc {
 	public TextField	data;
 	Frame 			frame;
 	JvnObject       sentence;
+	Button unlock_button;
 
 
   /**
@@ -71,13 +72,14 @@ public class Irc {
 		Button write_button = new Button("write");
 		write_button.addActionListener(new writeListener(this));
 		frame.add(write_button);
-		Button unlock_button = new Button("unlock");
+		unlock_button = new Button("is unlocked");
 		unlock_button.addActionListener(new ActionListener(){
 
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				try {
 					sentence.jvnUnLock();
+					unlock_button.setLabel("is unlocked");
 				} catch (JvnException e1) {
 					// TODO Auto-generated catch block
 					e1.printStackTrace();
@@ -116,6 +118,7 @@ public class Irc {
 	 try {
 		// lock the object in read mode
 		irc.sentence.jvnLockRead();
+		irc.unlock_button.setLabel("need unlock");
 		
 		// invoke the method
 		String s = ((Sentence)(irc.sentence.jvnGetObjectState())).read();
@@ -152,6 +155,7 @@ public class Irc {
         	
     // lock the object in write mode
 		irc.sentence.jvnLockWrite();
+		irc.unlock_button.setLabel("need unlock");
 		
 		// invoke the method
 		((Sentence)(irc.sentence.jvnGetObjectState())).write(s);
