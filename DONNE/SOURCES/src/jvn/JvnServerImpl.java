@@ -39,7 +39,7 @@ public class JvnServerImpl
 		try{
 			Registry registry = LocateRegistry.getRegistry();
 			jr = (JvnRemoteCoord) registry.lookup("coord");
-		} catch (Exception e){
+		} catch (RemoteException e){
 			System.err.println("Error on client : " + e.getMessage());
 			e.printStackTrace();
 		}
@@ -69,7 +69,7 @@ public class JvnServerImpl
 	throws jvn.JvnException {
     	try {
 			jr.jvnTerminate(this);
-		} catch (Exception e) {
+		} catch (RemoteException e) {
 			System.err.println("Problem with termination : " + e.getMessage());
 			e.printStackTrace();
 		} 
@@ -90,7 +90,7 @@ public class JvnServerImpl
 			jo.jvnLockWrite();
 			
 			return jo;
-		} catch(Exception e){
+		} catch(RemoteException e){
 			System.err.println("Problem with object creation : "+e.getMessage());
 			e.printStackTrace();
 		}
@@ -107,7 +107,7 @@ public class JvnServerImpl
 	throws jvn.JvnException {
 		try{
 			jr.jvnRegisterObject(jon, jo, this);
-		} catch(Exception e){
+		} catch(RemoteException e){
 			System.err.println("Problem with object registering : "+e.getMessage());
 			e.printStackTrace();
 		}
@@ -129,7 +129,7 @@ public class JvnServerImpl
 			}	
 			
 			return jo;
-		} catch(Exception e){
+		} catch(RemoteException e){
 			System.err.println("Problem with object lookup : "+e.getMessage());
 			e.printStackTrace();
 		}
@@ -146,7 +146,7 @@ public class JvnServerImpl
 	 throws JvnException {
 		try {
 			return jr.jvnLockRead(joi, this);
-		} catch (Exception e) {
+		} catch (RemoteException e) {
 			System.err.println("Problem with lock read : " + e.getMessage());
 			e.printStackTrace();
 		}
@@ -162,7 +162,7 @@ public class JvnServerImpl
 	 throws JvnException {
 	   try {
 			return jr.jvnLockWrite(joi, this);
-		} catch (Exception e) {
+		} catch (RemoteException e) {
 			System.err.println("Problem with lock write : " + e.getMessage());
 			e.printStackTrace();
 		}
