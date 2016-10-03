@@ -96,11 +96,11 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		if (nameMap.contains(jon)) {
 			throw new JvnException();
 		} else {
-			// We add the association of the name and id
-			nameMap.put(jon, jo.jvnGetObjectId());
-
-			// Then we add the object
+			// We add the object
 			objectMap.put(jo.jvnGetObjectId(), jo.jvnGetObjectState());
+			
+			// Then we add the association of the name and id
+			nameMap.put(jon, jo.jvnGetObjectId());
 			
 			System.out.println("Object " + jon + "registered");
 			printNames();
@@ -165,7 +165,7 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 			objectMap.put(joi, r);
 			writer.setState(StateLock.R);
 			
-			System.out.println("Invalidation d'un writer sur " + joi);
+			System.out.println("InvalidateWriterForReader on " + joi);
 		}
 		
 		// We add the server in read mode
@@ -201,12 +201,12 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 			listServerState.add(st);
 			lockMap.put(joi, listServerState);
 			
-			System.out.println("Object cr�� " + joi);
+			System.out.println("Object created with id : " + joi);
 			
 			return null;
 		}
 		
-		System.out.println("Lock write sur " + joi);
+		System.out.println("Lock write on " + joi);
 		
 		Serializable r = objectMap.get(joi);
 		
@@ -218,11 +218,11 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 					System.out.println("W " + st.getServer());
 					r = st.getServer().jvnInvalidateWriter(joi);
 					objectMap.put(joi, r);
-					System.out.println("Invalidation d'un writer sur " + joi);
+					System.out.println("InvalidateWriter on " + joi);
 				} else {
 					System.out.println("R " + st.getServer());
 					st.getServer().jvnInvalidateReader(joi);
-					System.out.println("Invalidation d'un reader sur " + joi);
+					System.out.println("InvalidateReader on " + joi);
 				}
 			}
 			
