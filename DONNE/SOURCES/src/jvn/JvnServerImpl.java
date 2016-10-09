@@ -85,9 +85,8 @@ public class JvnServerImpl
 		try{
 			int id = jr.jvnGetObjectId();
 			System.out.println(id);
-			JvnObjectImpl jo = new JvnObjectImpl(id, o);
+			JvnObjectImpl jo = new JvnObjectImpl(id, o, StateLock.W);
 			objectMap.put(id, jo);
-			jo.jvnLockWrite();
 			
 			return jo;
 		} catch(RemoteException e){

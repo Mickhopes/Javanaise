@@ -14,6 +14,11 @@ public class JvnObjectImpl implements JvnObject{
 		this.state = StateLock.NL;
 	}
 	
+	public JvnObjectImpl(int id, Serializable objectData, StateLock state) {
+		this(id, objectData);
+		this.state = state;
+	}
+	
 	public StateLock getState() {
 		return state;
 	}
@@ -36,7 +41,7 @@ public class JvnObjectImpl implements JvnObject{
 				state = StateLock.R;
 				break;
 			default:
-				break;
+				throw new JvnException("Read lock already taken");
 		}
 	}
 
@@ -48,6 +53,7 @@ public class JvnObjectImpl implements JvnObject{
 				break;
 			case NL:
 			case RC:
+			case R:
 				JvnServerImpl js = JvnServerImpl.jvnGetServer();
 				Serializable r = js.jvnLockWrite(id);
 				if (r != null) {
@@ -56,7 +62,7 @@ public class JvnObjectImpl implements JvnObject{
 				state = StateLock.W;
 				break;
 			default:
-				break;
+				throw new JvnException("Write lock already taken");
 		}
 	}
 
@@ -69,8 +75,12 @@ public class JvnObjectImpl implements JvnObject{
 			case R:
 				state = StateLock.RC;
 				break;
-			default:
-				break;
+			case RC:
+				throw new JvnException("Read lock already unlocked");
+			case WC:
+				throw new JvnException("Write lock already unlocked");
+			case NL:
+				throw new JvnException("No lock taken");
 		}
 		System.out.println("Wait ended");
 		notify();
