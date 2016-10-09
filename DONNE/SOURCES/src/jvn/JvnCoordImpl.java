@@ -15,6 +15,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import irc.Sentence;
 
@@ -42,6 +44,11 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	 * HashMap for the list of the server and their state
 	 */
 	private ConcurrentHashMap<Integer, List<ServerState>> lockMap;
+	
+	/**
+	 * Lock for the coordinator synchronization
+	 */
+	private Lock l = new ReentrantLock();
 
 	/**
 	 * Default constructor
@@ -96,11 +103,22 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		if (nameMap.contains(jon)) {
 			throw new JvnException();
 		} else {
-			// We add the object
-			objectMap.put(jo.jvnGetObjectId(), jo.jvnGetObjectState());
-			
-			// Then we add the association of the name and id
-			nameMap.put(jon, jo.jvnGetObjectId());
+			l.lock();
+			try {
+				// We add the association of the name and id
+				nameMap.put(jon, jo.jvnGetObjectId());
+				
+				// We add the object
+				objectMap.put(jo.jvnGetObjectId(), jo.jvnGetObjectState());
+				
+				// We add the server state
+				ArrayList<ServerState> listServerState = new ArrayList<ServerState>();
+				ServerState st = new ServerState(js, StateLock.W);
+				listServerState.add(st);
+				lockMap.put(jo.jvnGetObjectId(), listServerState);
+			} finally {
+				l.unlock();
+			}
 			
 			System.out.println("Object " + jon + "registered");
 			printNames();
@@ -138,40 +156,45 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	 * @throws java.rmi.RemoteException,
 	 *             JvnException
 	 **/
-	public synchronized Serializable jvnLockRead(int joi, JvnRemoteServer js)
+	public Serializable jvnLockRead(int joi, JvnRemoteServer js)
 			throws java.rmi.RemoteException, JvnException {
 		List<ServerState> ls = lockMap.get(joi);
 		Serializable r = objectMap.get(joi);
 		
-		// Check if there is no writers
-		ServerState writer = null;
-		ServerState self = null;
-		for(ServerState st : ls) {
-			if (!js.equals(st.getServer())) {
-				if (st.getState() == StateLock.W) {
-					writer = st;
-					break;
+		l.lock();
+		try {
+			// Check if there is no writers
+			ServerState writer = null;
+			ServerState self = null;
+			for(ServerState st : ls) {
+				if (!js.equals(st.getServer())) {
+					if (st.getState() == StateLock.W) {
+						writer = st;
+						break;
+					}
+				} else {
+					self = st;
 				}
-			} else {
-				self = st;
 			}
-		}
-		
-		System.out.println("Lock read sur " + joi);
-	
-		// If there is a writer, we invalidate it
-		if (writer != null) {
-			r = writer.getServer().jvnInvalidateWriterForReader(joi);
-			objectMap.put(joi, r);
-			writer.setState(StateLock.R);
 			
-			System.out.println("InvalidateWriterForReader on " + joi);
-		}
+			System.out.println("Lock read sur " + joi);
 		
-		// We add the server in read mode
-		if (self == null) {
-			ServerState s = new ServerState(js, StateLock.R);
-			ls.add(s);
+			// If there is a writer, we invalidate it
+			if (writer != null) {
+				r = writer.getServer().jvnInvalidateWriterForReader(joi);
+				objectMap.put(joi, r);
+				writer.setState(StateLock.R);
+				
+				System.out.println("InvalidateWriterForReader on " + joi);
+			}
+			
+			// We add the server in read mode
+			if (self == null) {
+				ServerState s = new ServerState(js, StateLock.R);
+				ls.add(s);
+			}
+		} finally {
+			l.unlock();
 		}
 		
 		printStates();
@@ -190,48 +213,43 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	 * @throws java.rmi.RemoteException,
 	 *             JvnException
 	 **/
-	public synchronized Serializable jvnLockWrite(int joi, JvnRemoteServer js)
+	public Serializable jvnLockWrite(int joi, JvnRemoteServer js)
 			throws java.rmi.RemoteException, JvnException {
 		List<ServerState> ls = lockMap.get(joi);
-		
-		// If joi entry doesn't exists then the object have been created
-		if (ls == null) {
-			ArrayList<ServerState> listServerState = new ArrayList<ServerState>();
-			ServerState st = new ServerState(js, StateLock.W);
-			listServerState.add(st);
-			lockMap.put(joi, listServerState);
-			
-			System.out.println("Object created with id : " + joi);
-			
-			return null;
-		}
 		
 		System.out.println("Lock write on " + joi);
 		
 		Serializable r = objectMap.get(joi);
 		
 		System.out.println(ls.size());
-		// Check if there is no writers
-		for(ServerState st : ls) {
-			if (!js.equals(st.getServer())) {
-				if (st.getState() == StateLock.W) {
-					System.out.println("W " + st.getServer());
-					r = st.getServer().jvnInvalidateWriter(joi);
-					objectMap.put(joi, r);
-					System.out.println("InvalidateWriter on " + joi);
-				} else {
-					System.out.println("R " + st.getServer());
-					st.getServer().jvnInvalidateReader(joi);
-					System.out.println("InvalidateReader on " + joi);
-				}
-			}
-			
-		}
-		ls.clear();
 		
-		// We add the server in write mode
-		ServerState s = new ServerState(js, StateLock.W);
-		ls.add(s);
+		l.lock();
+		try {
+			// Check if there is no writers
+			for(ServerState st : ls) {
+				if (!js.equals(st.getServer())) {
+					if (st.getState() == StateLock.W) {
+						System.out.println("W " + st.getServer());
+						r = st.getServer().jvnInvalidateWriter(joi);
+						objectMap.put(joi, r);
+						System.out.println("InvalidateWriter on " + joi);
+					} else {
+						System.out.println("R " + st.getServer());
+						st.getServer().jvnInvalidateReader(joi);
+						System.out.println("InvalidateReader on " + joi);
+					}
+				}
+				
+			}
+			ls.clear();
+			
+			// We add the server in write mode
+			ServerState s = new ServerState(js, StateLock.W);
+			ls.add(s);
+		} finally {
+			l.unlock();
+		}
+
 		printStates();
 		
 		return r;
