@@ -65,7 +65,7 @@ public class JvnServerImpl
 	* The JVN service is not used anymore
 	* @throws JvnException
 	**/
-	public  void jvnTerminate()
+	public void jvnTerminate()
 	throws jvn.JvnException {
     	try {
 			jr.jvnTerminate(this);

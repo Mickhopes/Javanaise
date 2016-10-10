@@ -100,7 +100,7 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	public void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
 			throws java.rmi.RemoteException, jvn.JvnException {
 		
-		if (nameMap.contains(jon)) {
+		if (nameMap.containsKey(jon)) {
 			throw new JvnException();
 		} else {
 			l.lock();
@@ -263,19 +263,28 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	 * @throws java.rmi.RemoteException,
 	 *             JvnException
 	 **/
-	public synchronized void jvnTerminate(JvnRemoteServer js) throws java.rmi.RemoteException, JvnException {
-		// We look for each object if the server is using it
-		for (Entry<Integer, List<ServerState>> e : lockMap.entrySet()) {
-			List<ServerState> lst = e.getValue();
-
-			// We also look in the list
-			for (ServerState s : lst) {
-
-				// if we find it, we remove it
-				if (js == s.getServer()) {
-					lst.remove(s);
+	public void jvnTerminate(JvnRemoteServer js) throws java.rmi.RemoteException, JvnException {
+		l.lock();
+		try {
+			// We look for each object if the server is using it
+			for (Entry<Integer, List<ServerState>> e : lockMap.entrySet()) {
+				List<ServerState> lst = e.getValue();
+				
+				// We also look in the list
+				ServerState rem = null;
+				for (ServerState s : lst) {
+	
+					// if we find it, we remove it
+					if (js.equals(s.getServer())) {
+						rem = s;
+					}
 				}
+			
+				if (rem != null)
+					lst.remove(rem);
 			}
+		} finally{
+			l.unlock();
 		}
 	}
 	

@@ -30,7 +30,7 @@ public class Irc2 {
 	public static void main(String argv[]) {
 	   try {
 		   
-		ISentence s = (ISentence) JvnProxy.newInstance("IRC", new Sentence());
+		ISentence s = (ISentence) JvnProxy.newInstance("IRC", Sentence.class);
 		   
 		// create the graphical part of the Chat application
 		 new Irc2(s);
@@ -83,6 +83,11 @@ public class Irc2 {
 		frame.setVisible(true);
 		frame.addWindowListener(new WindowAdapter(){
 			public void windowClosing(WindowEvent e){
+				try {
+					JvnServerImpl.jvnGetServer().jvnTerminate();
+				} catch (JvnException e1) {
+					e1.printStackTrace();
+				}
 				System.exit(0);
 			}
 		});

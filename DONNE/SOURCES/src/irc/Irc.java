@@ -94,6 +94,11 @@ public class Irc {
 		frame.setVisible(true);
 		frame.addWindowListener(new WindowAdapter(){
 			public void windowClosing(WindowEvent e){
+				try {
+					JvnServerImpl.jvnGetServer().jvnTerminate();
+				} catch (JvnException e1) {
+					e1.printStackTrace();
+				}
 				System.exit(0);
 			}
 		});
