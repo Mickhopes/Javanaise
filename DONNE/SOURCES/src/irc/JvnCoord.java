@@ -6,7 +6,7 @@ import java.rmi.registry.Registry;
 
 import jvn.JvnCoordImpl;
 
-public class IrcCoord {
+public class JvnCoord {
 
 	public static void main(String[] args) {
 		try {
