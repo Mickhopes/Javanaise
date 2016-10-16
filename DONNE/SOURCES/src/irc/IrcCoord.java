@@ -13,7 +13,7 @@ public class IrcCoord {
 			// We bind the server in the rmi registry
 			JvnCoordImpl jc = JvnCoordImpl.jvnGetServer();
 			
-			Registry registry = LocateRegistry.getRegistry();
+			Registry registry = LocateRegistry.createRegistry(1099);
 			registry.rebind("coord", jc);
 		} catch (RemoteException e) {
 			System.err.println("Unable to bind coordinator: " + e.getMessage());

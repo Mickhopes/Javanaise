@@ -8,20 +8,27 @@
 
 package jvn;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import irc.Sentence;
-
 public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord {
-	
+
+	/**
+	 * Singleton variable
+	 */
 	private static JvnCoordImpl jc;
 
 	/**
@@ -58,11 +65,34 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	private JvnCoordImpl() throws Exception {
 		super();
 		
-		nameMap = new ConcurrentHashMap<String, Integer>();
-		objectMap = new ConcurrentHashMap<Integer, Serializable>();
 		lockMap = new ConcurrentHashMap<Integer, List<ServerState>>();
+		
+		// We get the serialization maps if they exist
+		// cf try-with-resources
+		try (
+			final FileInputStream f1 = new FileInputStream("nameMap.ser");
+			ObjectInputStream ois1 = new ObjectInputStream(f1);
+			final FileInputStream f2 = new FileInputStream("objectMap.ser");
+			ObjectInputStream ois2 = new ObjectInputStream(f2);
+		) {
+			// We get the maps
+			nameMap = (ConcurrentHashMap<String, Integer>) ois1.readObject();
+			objectMap = (ConcurrentHashMap<Integer, Serializable>) ois2.readObject();
+			
+			// Then foreach object we have we recreate the lockmap
+			for(Entry<Integer, Serializable> e : objectMap.entrySet()) {
+				lockMap.put(e.getKey(), new ArrayList<ServerState>());
+			}
+		} catch (IOException | ClassNotFoundException e) {
+			nameMap = new ConcurrentHashMap<String, Integer>();
+			objectMap = new ConcurrentHashMap<Integer, Serializable>();
+		}
 	}
 	
+	/**
+	 * 
+	 * @return the unique instance of the server
+	 */
 	public static JvnCoordImpl jvnGetServer() {
 		if (jc == null) {
 			try {
@@ -101,7 +131,7 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 			throws java.rmi.RemoteException, jvn.JvnException {
 		
 		if (nameMap.containsKey(jon)) {
-			throw new JvnException();
+			throw new JvnException("'" + jon + "' is already registered");
 		} else {
 			l.lock();
 			try {
@@ -116,6 +146,10 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 				ServerState st = new ServerState(js, StateLock.W);
 				listServerState.add(st);
 				lockMap.put(jo.jvnGetObjectId(), listServerState);
+				
+				// We save the object mapping
+				saveNameMap();
+				saveObjectMap();
 			} finally {
 				l.unlock();
 			}
@@ -181,11 +215,19 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		
 			// If there is a writer, we invalidate it
 			if (writer != null) {
-				r = writer.getServer().jvnInvalidateWriterForReader(joi);
-				objectMap.put(joi, r);
-				writer.setState(StateLock.R);
-				
-				System.out.println("InvalidateWriterForReader on " + joi);
+				try {
+					r = writer.getServer().jvnInvalidateWriterForReader(joi);
+					objectMap.put(joi, r);
+					writer.setState(StateLock.R);
+					System.out.println("InvalidateWriterForReader on " + joi);
+					
+					// We save the object map
+					saveObjectMap();
+				} catch (RemoteException e) {
+					// If we have no answer from the server we terminate it
+					System.out.println("Server in state '" + writer.getState() + "' terminated");
+					removeServer(writer.getServer());
+				}
 			}
 			
 			// We add the server in read mode
@@ -226,17 +268,27 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		l.lock();
 		try {
 			// Check if there is no writers
-			for(ServerState st : ls) {
+			List<ServerState> lsCopy = new ArrayList<>(ls);
+			for(ServerState st : lsCopy) {
 				if (!js.equals(st.getServer())) {
-					if (st.getState() == StateLock.W) {
-						System.out.println("W " + st.getServer());
-						r = st.getServer().jvnInvalidateWriter(joi);
-						objectMap.put(joi, r);
-						System.out.println("InvalidateWriter on " + joi);
-					} else {
-						System.out.println("R " + st.getServer());
-						st.getServer().jvnInvalidateReader(joi);
-						System.out.println("InvalidateReader on " + joi);
+					try {
+						if (st.getState() == StateLock.W) {
+							System.out.println("W " + st.getServer());
+							r = st.getServer().jvnInvalidateWriter(joi);
+							objectMap.put(joi, r);
+							System.out.println("InvalidateWriter on " + joi);
+							
+							// We save the object map
+							saveObjectMap();
+						} else {
+							System.out.println("R " + st.getServer());
+							st.getServer().jvnInvalidateReader(joi);
+							System.out.println("InvalidateReader on " + joi);
+						}
+					} catch (RemoteException e) {
+						// If we have no answer from the server we terminate it
+						System.out.println("Server in state '" + st.getState() + "' terminated");
+						removeServer(st.getServer());
 					}
 				}
 				
@@ -266,28 +318,40 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 	public void jvnTerminate(JvnRemoteServer js) throws java.rmi.RemoteException, JvnException {
 		l.lock();
 		try {
-			// We look for each object if the server is using it
-			for (Entry<Integer, List<ServerState>> e : lockMap.entrySet()) {
-				List<ServerState> lst = e.getValue();
-				
-				// We also look in the list
-				ServerState rem = null;
-				for (ServerState s : lst) {
-	
-					// if we find it, we remove it
-					if (js.equals(s.getServer())) {
-						rem = s;
-					}
-				}
-			
-				if (rem != null)
-					lst.remove(rem);
-			}
+			removeServer(js);
 		} finally{
 			l.unlock();
 		}
 	}
 	
+	/**
+	 * Remove a server from the server list
+	 * 
+	 * @param js the server to remove
+	 */
+	private void removeServer(JvnRemoteServer js) {
+		// We look for each object if the server is using it
+		for (Entry<Integer, List<ServerState>> e : lockMap.entrySet()) {
+			List<ServerState> lst = e.getValue();
+			
+			// We also look in the list
+			ServerState rem = null;
+			for (ServerState s : lst) {
+
+				// if we find it, we remove it
+				if (js.equals(s.getServer())) {
+					rem = s;
+				}
+			}
+		
+			if (rem != null)
+				lst.remove(rem);
+		}
+	}
+	
+	/**
+	 * Print all object id with their respective names
+	 */
 	public void printNames() {
 		System.out.println("Name Map :");
 		for(Entry<String, Integer> e : nameMap.entrySet()) {
@@ -295,6 +359,9 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 		}
 	}
 	
+	/**
+	 * Print the states of all server connected
+	 */
 	public void printStates() {
 		System.out.println("State Map :");
 		for(Entry<Integer, List<ServerState>> e : lockMap.entrySet()) {
@@ -302,6 +369,38 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 			for(ServerState s : e.getValue()) {
 				System.out.println("\t" + s.getServer().toString() + "\t" + s.getState());
 			}
+		}
+	}
+	
+	/**
+	 * Save the name map
+	 */
+	private void saveNameMap() {
+		try (
+			final FileOutputStream file = new FileOutputStream("nameMap.ser");
+			ObjectOutputStream oos = new ObjectOutputStream(file);
+		) {
+			oos.writeObject(this.nameMap);
+			oos.flush();
+		} catch (IOException e) {
+			System.err.println("Unable to save name map");
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * Save the object map
+	 */
+	private void saveObjectMap() {
+		try (
+			final FileOutputStream file = new FileOutputStream("objectMap.ser");
+			ObjectOutputStream oos = new ObjectOutputStream(file);
+		) {
+			oos.writeObject(this.objectMap);
+			oos.flush();
+		} catch (IOException e) {
+			System.err.println("Unable to save object map");
+			e.printStackTrace();
 		}
 	}
 }
