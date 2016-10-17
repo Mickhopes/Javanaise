@@ -80,9 +80,16 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 			objectMap = (ConcurrentHashMap<Integer, Serializable>) ois2.readObject();
 			
 			// Then foreach object we have we recreate the lockmap
+			// And we set the idCount
+			Integer max = new Integer(-1);
 			for(Entry<Integer, Serializable> e : objectMap.entrySet()) {
 				lockMap.put(e.getKey(), new ArrayList<ServerState>());
+				
+				if (e.getKey().compareTo(max) == 1) {
+					max = e.getKey();
+				}
 			}
+			idCount = max;
 		} catch (IOException | ClassNotFoundException e) {
 			nameMap = new ConcurrentHashMap<String, Integer>();
 			objectMap = new ConcurrentHashMap<Integer, Serializable>();

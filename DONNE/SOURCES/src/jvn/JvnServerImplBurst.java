@@ -17,12 +17,11 @@ import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.HashMap;
 
-public class JvnServerImpl 	
+public class JvnServerImplBurst 	
               extends UnicastRemoteObject 
 							implements JvnLocalServer, JvnRemoteServer{
 	
   // A JVN server is managed as a singleton 
-	private static JvnServerImpl js = null;
 	private JvnRemoteCoord jr;
 	
 	private HashMap<Integer, JvnObject> objectMap;
@@ -31,7 +30,7 @@ public class JvnServerImpl
   * Default constructor
   * @throws JvnException
   **/
-	private JvnServerImpl() throws Exception {
+	public JvnServerImplBurst() throws Exception {
 		super();
 		
 		objectMap = new HashMap<>();
@@ -47,22 +46,6 @@ public class JvnServerImpl
 			System.err.println("Error on client : " + e.getMessage());
 			e.printStackTrace();
 		}
-	}
-	
-  /**
-    * Static method allowing an application to get a reference to 
-    * a JVN server instance
-    * @throws JvnException
-    **/
-	public static JvnServerImpl jvnGetServer() {
-		if (js == null){
-			try {
-				js = new JvnServerImpl();
-			} catch (Exception e) {
-				return null;
-			}
-		}
-		return js;
 	}
 	
 	/**
